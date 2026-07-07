@@ -139,20 +139,25 @@ def gen_sigungu_page(sido, sigungu, items):
     return page_shell(title, desc, canonical, "../../", body)
 
 
+GRID_STYLE = "display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;"
+
+
 def gen_sido_page(sido, sigungu_list):
     cards = "".join(
-        f"""<a href="{sido}/{sg}.html" class="region-card" style="display:block;background:white;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.06);padding:16px 20px;margin-bottom:10px;">
+        f"""<a href="{sido}/{sg}.html" class="region-card" style="display:block;background:white;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.06);padding:18px 20px;transition:transform .12s,box-shadow .12s;">
           <strong>{sg}</strong>
         </a>"""
         for sg in sigungu_list
     )
     body = f"""
-<div style="max-width:700px;margin:0 auto;padding:24px 20px 40px;">
+<div style="max-width:1100px;margin:0 auto;padding:24px 20px 40px;">
   <nav style="font-size:.8rem;color:var(--text-muted);margin-bottom:16px;">
     <a href="../index.html">홈</a> &rsaquo; <span>{sido}</span>
   </nav>
-  <h1 style="font-size:1.5rem;margin-bottom:20px;">{sido} 대형폐기물 수수료 — 시군구 선택</h1>
+  <h1 style="font-size:1.5rem;margin-bottom:20px;">{sido} 대형폐기물 수수료 — 시군구 선택 ({len(sigungu_list)}개 지역)</h1>
+  <div style="{GRID_STYLE}">
   {cards}
+  </div>
 </div>
 """
     title = f"{sido} 대형폐기물 수수료 지역별 조회 | 우아트래시"
@@ -161,10 +166,52 @@ def gen_sido_page(sido, sigungu_list):
     return page_shell(title, desc, canonical, "../", body)
 
 
-def gen_index_page(sido_map):
+CATEGORY_INFO = [
+    ("가전제품류", "🧊", "냉장고, 세탁기, TV, 에어컨 등"),
+    ("가구류", "🛋️", "침대, 소파, 옷장, 책상 등"),
+    ("생활용품류", "🧺", "매트리스, 카페트, 항아리 등"),
+    ("기타", "📦", "자전거, 운동기구, 화분 등"),
+]
+
+
+def gen_index_page(sido_map, records):
+    total_items = len(records)
+    total_sigungu = sum(len(sgs) for sgs in sido_map.values())
+    total_sido = len(sido_map)
+
+    stats_bar = f"""
+<div style="max-width:1100px;margin:0 auto;padding:24px 20px 0;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;">
+  <div style="background:white;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.06);padding:18px;text-align:center;">
+    <div style="font-size:1.6rem;font-weight:800;color:var(--primary);">{total_sido}</div>
+    <div style="font-size:.82rem;color:var(--text-muted);">개 시도</div>
+  </div>
+  <div style="background:white;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.06);padding:18px;text-align:center;">
+    <div style="font-size:1.6rem;font-weight:800;color:var(--primary);">{total_sigungu}</div>
+    <div style="font-size:.82rem;color:var(--text-muted);">개 시군구</div>
+  </div>
+  <div style="background:white;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.06);padding:18px;text-align:center;">
+    <div style="font-size:1.6rem;font-weight:800;color:var(--primary);">{total_items:,}</div>
+    <div style="font-size:.82rem;color:var(--text-muted);">개 품목 요금 정보</div>
+  </div>
+  <div style="background:white;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.06);padding:18px;text-align:center;">
+    <div style="font-size:1.6rem;font-weight:800;color:var(--primary);">매달</div>
+    <div style="font-size:.82rem;color:var(--text-muted);">자동 업데이트</div>
+  </div>
+</div>
+"""
+
+    category_cards = "".join(
+        f"""<div style="background:white;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.06);padding:18px;text-align:center;">
+          <div style="font-size:1.8rem;margin-bottom:6px;">{icon}</div>
+          <div style="font-weight:700;margin-bottom:4px;">{name}</div>
+          <div style="font-size:.8rem;color:var(--text-muted);">{desc}</div>
+        </div>"""
+        for name, icon, desc in CATEGORY_INFO
+    )
+
     sido_cards = "".join(
-        f"""<a href="지역/{sido}.html" class="region-card" style="display:block;background:white;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.06);padding:16px 20px;margin-bottom:10px;">
-          <strong>{sido}</strong> <span style="color:var(--text-muted);font-size:.85rem;">({len(sgs)}개 지역)</span>
+        f"""<a href="지역/{sido}.html" class="region-card" style="display:block;background:white;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.06);padding:18px 20px;">
+          <strong>{sido}</strong><br><span style="color:var(--text-muted);font-size:.85rem;">{len(sgs)}개 지역</span>
         </a>"""
         for sido, sgs in sorted(sido_map.items())
     )
@@ -173,9 +220,18 @@ def gen_index_page(sido_map):
   <h1 style="font-size:1.8rem;font-weight:800;margin-bottom:10px;">\U0001f5d1️ 전국 대형폐기물 수수료 조회</h1>
   <p style="opacity:.9;">우리 동네 냉장고, 세탁기, 침대 버릴 때 얼마인지 바로 확인하세요</p>
 </div>
-<div style="max-width:700px;margin:0 auto;padding:24px 20px 40px;">
-  <h2 style="font-size:1.1rem;margin-bottom:16px;">지역 선택</h2>
+{stats_bar}
+<div style="max-width:1100px;margin:0 auto;padding:32px 20px 0;">
+  <h2 style="font-size:1.1rem;margin-bottom:16px;">품목 카테고리</h2>
+  <div style="{GRID_STYLE.replace('220px','160px')}">
+    {category_cards}
+  </div>
+</div>
+<div style="max-width:1100px;margin:0 auto;padding:32px 20px 50px;">
+  <h2 style="font-size:1.1rem;margin-bottom:16px;" id="region">지역 선택</h2>
+  <div style="{GRID_STYLE}">
   {sido_cards}
+  </div>
 </div>
 """
     title = "전국 대형폐기물 스티커 요금 조회 — 냉장고·세탁기·침대 배출비용 | 우아트래시"
@@ -214,7 +270,7 @@ def main():
             (sido_dir / f"{sg}.html").write_text(gen_sigungu_page(sido, sg, items), encoding="utf-8")
             generated += 1
 
-    (DOCS_DIR / "index.html").write_text(gen_index_page(sido_map), encoding="utf-8")
+    (DOCS_DIR / "index.html").write_text(gen_index_page(sido_map, records), encoding="utf-8")
     generated += 1
 
     gen_sitemap(sido_map)
