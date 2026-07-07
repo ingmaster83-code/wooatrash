@@ -13,6 +13,24 @@ REGION_DIR = DOCS_DIR / "지역"
 BASE_URL = "https://wooatrash.wooahouse.com"
 TODAY = date.today().isoformat()
 
+POPULAR_ITEMS = ["냉장고", "세탁기", "침대", "소파", "옷장", "에어컨", "책상"]
+
+SIDO_SHORT = {
+    "서울특별시": "서울", "부산광역시": "부산", "대구광역시": "대구",
+    "인천광역시": "인천", "광주광역시": "광주", "대전광역시": "대전",
+    "울산광역시": "울산", "세종특별자치시": "세종", "경기도": "경기",
+    "강원특별자치도": "강원", "충청북도": "충북", "충청남도": "충남",
+    "전북특별자치도": "전북", "전라남도": "전남", "경상북도": "경북",
+    "경상남도": "경남", "제주특별자치도": "제주",
+}
+
+
+def short_name(name):
+    """'구로구' -> '구로', '가평군' -> '가평', '수원시' -> '수원'"""
+    if len(name) > 2 and name[-1] in "구군시":
+        return name[:-1]
+    return name
+
 HEAD_COMMON = """<meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -60,13 +78,14 @@ def load_records():
     return data
 
 
-def page_shell(title, description, canonical, root, body, extra_head=""):
+def page_shell(title, description, canonical, root, body, extra_head="", keywords=""):
+    keywords_tag = f'\n  <meta name="keywords" content="{keywords}">' if keywords else ""
     return f"""<!DOCTYPE html>
 <html lang="ko">
 <head>
 {HEAD_COMMON}
   <title>{title}</title>
-  <meta name="description" content="{description}">
+  <meta name="description" content="{description}">{keywords_tag}
   <link rel="canonical" href="{canonical}">
   <meta property="og:title" content="{title}">
   <meta property="og:description" content="{description}">
@@ -140,10 +159,13 @@ def gen_sigungu_page(sido, sigungu, items):
   {AD_SIDEBAR}
 </div>
 """
-    title = f"{sido} {sigungu} 대형폐기물 스티커 요금 {TODAY[:4]} | 우아트래시"
-    desc = f"{sido} {sigungu} 대형폐기물(가전제품, 가구, 생활용품) 배출 수수료를 품목별로 확인하세요. 총 {len(items)}개 품목 요금 정보 제공."
+    short_sg = short_name(sigungu)
+    sample_items = ", ".join(sorted({it.get("대형폐기물명", "") for it in items} & set(POPULAR_ITEMS))[:4]) or ", ".join(POPULAR_ITEMS[:4])
+    title = f"{sido} {sigungu} 대형폐기물 스티커 가격·요금 {TODAY[:4]} | 우아트래시"
+    desc = f"{sido} {sigungu}({short_sg}) 대형폐기물 스티커 가격을 품목별로 확인하세요. {sample_items} 등 총 {len(items)}개 품목 배출 수수료 정보 제공."
+    keywords = f"{sigungu} 대형폐기물, {short_sg} 폐기물 가격, {sigungu} 폐기물 스티커, {sido} {sigungu} 대형폐기물 요금, {sample_items} 버리는법"
     canonical = f"{BASE_URL}/지역/{sido}/{sigungu}.html"
-    return page_shell(title, desc, canonical, "../../", body)
+    return page_shell(title, desc, canonical, "../../", body, keywords=keywords)
 
 
 GRID_STYLE = "display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;"
@@ -168,10 +190,12 @@ def gen_sido_page(sido, sigungu_list):
   </div>
 </div>
 """
-    title = f"{sido} 대형폐기물 수수료 지역별 조회 | 우아트래시"
-    desc = f"{sido} 내 시군구별 대형폐기물 배출 수수료를 확인하세요."
+    short_sido = SIDO_SHORT.get(sido, sido)
+    title = f"{sido} 대형폐기물 스티커 가격·수수료 지역별 조회 | 우아트래시"
+    desc = f"{sido}({short_sido}) 내 시군구별 대형폐기물(냉장고, 세탁기, 침대 등) 스티커 가격과 배출 수수료를 확인하세요."
+    keywords = f"{sido} 대형폐기물, {short_sido} 폐기물 가격, {sido} 폐기물 스티커 요금, {sido} 시군구 폐기물"
     canonical = f"{BASE_URL}/지역/{sido}.html"
-    return page_shell(title, desc, canonical, "../", body)
+    return page_shell(title, desc, canonical, "../", body, keywords=keywords)
 
 
 CATEGORY_INFO = [
@@ -245,10 +269,11 @@ def gen_index_page(sido_map, records):
   </div>
 </div>
 """
-    title = "전국 대형폐기물 스티커 요금 조회 — 냉장고·세탁기·침대 배출비용 | 우아트래시"
-    desc = "전국 시군구별 대형폐기물(가전제품, 가구, 생활용품) 배출 수수료를 무료로 확인하세요. 매달 업데이트되는 공공데이터 기반."
+    title = "전국 대형폐기물 스티커 가격·요금 조회 — 냉장고·세탁기·침대 배출비용 | 우아트래시"
+    desc = "전국 시군구별 대형폐기물(가전제품, 가구, 생활용품) 스티커 가격과 배출 수수료를 무료로 확인하세요. 매달 업데이트되는 공공데이터 기반, 전국 142개 지역 22,000여 개 품목 정보 제공."
+    keywords = "대형폐기물 가격, 대형폐기물 스티커 요금, 폐기물 스티커 가격, 냉장고 버리는 가격, 세탁기 버리는 가격, 침대 버리는 가격, 대형폐기물 배출 수수료"
     canonical = f"{BASE_URL}/"
-    return page_shell(title, desc, canonical, "", body)
+    return page_shell(title, desc, canonical, "", body, keywords=keywords)
 
 
 def gen_sitemap(sido_map):
