@@ -41,6 +41,8 @@ HEADER_TMPL = """<header class="site-header">
 <script src="{root}js/wooa-sites-bar.js"></script>
 """
 
+AD_BANNER = '<div class="ad-banner ad-mid"><ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-6464921081676309" data-ad-slot="7080296704" data-ad-format="auto" data-full-width-responsive="true"></ins><script>(adsbygoogle = window.adsbygoogle || []).push({});</script></div>'
+
 FOOTER_TMPL = """<footer style="background:#111827;color:#9CA3AF;padding:32px 20px;text-align:center;font-size:.85rem;margin-top:40px;">
   <p>우아트래시 · 전국 대형폐기물 수수료 조회</p>
   <p style="margin-top:8px;"><a href="{root}privacy.html" style="color:#9CA3AF;">개인정보처리방침</a> · <a href="https://wooahouse.com" target="_blank" rel="noopener" style="color:#9CA3AF;">WooaHouse</a></p>
@@ -130,6 +132,7 @@ def gen_sigungu_page(sido, sigungu, items):
   </nav>
   <h1 style="font-size:1.5rem;margin-bottom:6px;">{sido} {sigungu} 대형폐기물 수수료</h1>
   <p style="color:var(--text-muted);font-size:.9rem;margin-bottom:20px;">관리기관: {manage_org} · 품목 {len(items)}개</p>
+  {AD_BANNER}
   {''.join(sections)}
 </div>
 """
@@ -155,6 +158,7 @@ def gen_sido_page(sido, sigungu_list):
     <a href="../index.html">홈</a> &rsaquo; <span>{sido}</span>
   </nav>
   <h1 style="font-size:1.5rem;margin-bottom:20px;">{sido} 대형폐기물 수수료 — 시군구 선택 ({len(sigungu_list)}개 지역)</h1>
+  {AD_BANNER}
   <div style="{GRID_STYLE}">
   {cards}
   </div>
@@ -221,6 +225,9 @@ def gen_index_page(sido_map, records):
   <p style="opacity:.9;">우리 동네 냉장고, 세탁기, 침대 버릴 때 얼마인지 바로 확인하세요</p>
 </div>
 {stats_bar}
+<div style="max-width:1100px;margin:24px auto 0;padding:0 20px;">
+  {AD_BANNER}
+</div>
 <div style="max-width:1100px;margin:0 auto;padding:32px 20px 0;">
   <h2 style="font-size:1.1rem;margin-bottom:16px;">품목 카테고리</h2>
   <div style="{GRID_STYLE.replace('220px','160px')}">
