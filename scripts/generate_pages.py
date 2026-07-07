@@ -42,6 +42,7 @@ HEADER_TMPL = """<header class="site-header">
 """
 
 AD_BANNER = '<div class="ad-banner ad-mid"><ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-6464921081676309" data-ad-slot="7080296704" data-ad-format="auto" data-full-width-responsive="true"></ins><script>(adsbygoogle = window.adsbygoogle || []).push({});</script></div>'
+AD_SIDEBAR = '<div class="ad-banner ad-side" style="position:sticky;top:76px;"><ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-6464921081676309" data-ad-slot="1419180025" data-full-width-responsive="false"></ins><script>(adsbygoogle = window.adsbygoogle || []).push({});</script></div>'
 
 FOOTER_TMPL = """<footer style="background:#111827;color:#9CA3AF;padding:32px 20px;text-align:center;font-size:.85rem;margin-top:40px;">
   <p>우아트래시 · 전국 대형폐기물 수수료 조회</p>
@@ -122,18 +123,21 @@ def gen_sigungu_page(sido, sigungu, items):
             </tr></thead>
             <tbody>{rows}</tbody>
           </table>
-        </div>""")
+        </div>
+        {AD_BANNER}""")
 
     manage_org = items[0].get("관리기관명", "") if items else ""
     body = f"""
-<div style="max-width:900px;margin:0 auto;padding:24px 20px 40px;">
+<div style="max-width:1200px;margin:0 auto;padding:24px 20px 40px;display:flex;gap:24px;align-items:flex-start;">
+  <div style="flex:1;min-width:0;">
   <nav style="font-size:.8rem;color:var(--text-muted);margin-bottom:16px;">
     <a href="../index.html">홈</a> &rsaquo; <a href="{slug_sido}.html">{sido}</a> &rsaquo; <span>{sigungu}</span>
   </nav>
   <h1 style="font-size:1.5rem;margin-bottom:6px;">{sido} {sigungu} 대형폐기물 수수료</h1>
   <p style="color:var(--text-muted);font-size:.9rem;margin-bottom:20px;">관리기관: {manage_org} · 품목 {len(items)}개</p>
-  {AD_BANNER}
   {''.join(sections)}
+  </div>
+  {AD_SIDEBAR}
 </div>
 """
     title = f"{sido} {sigungu} 대형폐기물 스티커 요금 {TODAY[:4]} | 우아트래시"
