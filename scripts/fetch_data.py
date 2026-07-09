@@ -88,6 +88,14 @@ def main():
     records = fetch_all()
     print(f"총 {len(records)}건 수집 완료")
 
+    if OUT_PATH.exists():
+        existing = json.loads(OUT_PATH.read_text(encoding="utf-8"))
+        if len(records) < len(existing) * 0.5:
+            raise SystemExit(
+                f"수집 건수({len(records)}건)가 기존 데이터({len(existing)}건)의 절반 미만입니다. "
+                "API 오류로 판단하여 저장을 중단합니다."
+            )
+
     OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     OUT_PATH.write_text(
         json.dumps(records, ensure_ascii=False, indent=2), encoding="utf-8"
