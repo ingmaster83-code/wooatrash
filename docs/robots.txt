@@ -2,3 +2,5 @@ User-agent: *
 Allow: /
 
 Sitemap: https://wooatrash.wooahouse.com/sitemap.xml
+
+#DaumWebMasterTool:9219879fffa6e5715f07f3c1e78ff209f0024104664804dca5bc22984806d010:5OHFs/qHHlfCvAas17iLzw==
