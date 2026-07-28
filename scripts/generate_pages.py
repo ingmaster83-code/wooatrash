@@ -110,6 +110,7 @@ def page_shell(title, description, canonical, root, body, extra_head="", keyword
   <meta property="og:title" content="{title}">
   <meta property="og:description" content="{description}">
   <meta property="og:type" content="website">
+  <meta property="og:image" content="https://wooatrash.wooahouse.com/og-image.png">
   <meta property="og:url" content="{canonical}">
   <link rel="stylesheet" href="{root}css/style.css">
 {extra_head}
