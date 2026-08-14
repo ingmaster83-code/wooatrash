@@ -229,7 +229,8 @@ def gen_sido_page(sido, sigungu_list):
     </details>
   </div>"""
     body = f"""
-<div style="max-width:1100px;margin:0 auto;padding:24px 20px 40px;">
+<div style="max-width:1200px;margin:0 auto;padding:24px 20px 40px;display:flex;gap:24px;align-items:flex-start;">
+  <div style="flex:1;min-width:0;">
   <nav style="font-size:.8rem;color:var(--text-muted);margin-bottom:16px;">
     <a href="../index.html">홈</a> &rsaquo; <span>{sido}</span>
   </nav>
@@ -241,6 +242,8 @@ def gen_sido_page(sido, sigungu_list):
   {cards}
   </div>
   {faq_html}
+  </div>
+  {AD_SIDEBAR}
 </div>
 """
     short_sido = SIDO_SHORT.get(sido, sido)
@@ -309,26 +312,27 @@ def gen_index_page(sido_map, records):
 <div style="max-width:1100px;margin:24px auto 0;padding:0 20px;">
   {AD_BANNER}
 </div>
-<div style="max-width:1100px;margin:0 auto;padding:32px 20px 0;">
-  <h2 style="font-size:1.1rem;margin-bottom:16px;">품목 카테고리</h2>
-  <div style="{GRID_STYLE.replace('220px','160px')}">
-    {category_cards}
+<div style="max-width:1200px;margin:32px auto 0;padding:0 20px 50px;display:flex;gap:24px;align-items:flex-start;">
+  <div style="flex:1;min-width:0;">
+    <h2 style="font-size:1.1rem;margin-bottom:16px;">품목 카테고리</h2>
+    <div style="{GRID_STYLE.replace('220px','160px')}">
+      {category_cards}
+    </div>
+    <div style="margin:32px 0 0;">
+      <a href="봉투/index.html" style="display:flex;align-items:center;gap:16px;background:linear-gradient(135deg,#059669,#10B981);color:white;border-radius:14px;padding:22px 24px;text-decoration:none;">
+        <span style="font-size:2rem;">🧻</span>
+        <span style="flex:1;">
+          <strong style="display:block;font-size:1.05rem;margin-bottom:4px;">종량제봉투 가격도 확인하세요</strong>
+          <span style="opacity:.9;font-size:.88rem;">우리 동네 생활쓰레기·음식물쓰레기 봉투 가격 지역별 조회 &rarr;</span>
+        </span>
+      </a>
+    </div>
+    <h2 style="font-size:1.1rem;margin:32px 0 16px;" id="region">지역 선택</h2>
+    <div style="{GRID_STYLE}">
+    {sido_cards}
+    </div>
   </div>
-</div>
-<div style="max-width:1100px;margin:32px auto 0;padding:0 20px;">
-  <a href="봉투/index.html" style="display:flex;align-items:center;gap:16px;background:linear-gradient(135deg,#059669,#10B981);color:white;border-radius:14px;padding:22px 24px;text-decoration:none;">
-    <span style="font-size:2rem;">🧻</span>
-    <span style="flex:1;">
-      <strong style="display:block;font-size:1.05rem;margin-bottom:4px;">종량제봉투 가격도 확인하세요</strong>
-      <span style="opacity:.9;font-size:.88rem;">우리 동네 생활쓰레기·음식물쓰레기 봉투 가격 지역별 조회 &rarr;</span>
-    </span>
-  </a>
-</div>
-<div style="max-width:1100px;margin:0 auto;padding:32px 20px 50px;">
-  <h2 style="font-size:1.1rem;margin-bottom:16px;" id="region">지역 선택</h2>
-  <div style="{GRID_STYLE}">
-  {sido_cards}
-  </div>
+  {AD_SIDEBAR}
 </div>
 """
     title = "전국 대형폐기물 스티커 가격·요금 조회 — 냉장고·세탁기·침대 배출비용 | 우아트래시"
@@ -421,7 +425,8 @@ def gen_envlp_sido_page(sido, sigungu_list):
     )
     short_sido = SIDO_SHORT.get(sido, sido)
     body = f"""
-<div style="max-width:1100px;margin:0 auto;padding:24px 20px 40px;">
+<div style="max-width:1200px;margin:0 auto;padding:24px 20px 40px;display:flex;gap:24px;align-items:flex-start;">
+  <div style="flex:1;min-width:0;">
   <nav style="font-size:.8rem;color:var(--text-muted);margin-bottom:16px;">
     <a href="../index.html">홈</a> &rsaquo; <a href="index.html">종량제봉투 가격</a> &rsaquo; <span>{sido}</span>
   </nav>
@@ -432,6 +437,8 @@ def gen_envlp_sido_page(sido, sigungu_list):
   <div style="{GRID_STYLE}">
   {cards}
   </div>
+  </div>
+  {AD_SIDEBAR}
 </div>
 """
     title = f"{sido} 종량제봉투 가격 지역별 조회 | 우아트래시"
@@ -456,7 +463,8 @@ def gen_envlp_hub_page(sido_map):
 <div style="max-width:1100px;margin:24px auto 0;padding:0 20px;">
   {AD_BANNER}
 </div>
-<div style="max-width:1100px;margin:0 auto;padding:32px 20px 50px;">
+<div style="max-width:1200px;margin:0 auto;padding:32px 20px 50px;display:flex;gap:24px;align-items:flex-start;">
+  <div style="flex:1;min-width:0;">
   <nav style="font-size:.8rem;color:var(--text-muted);margin-bottom:16px;">
     <a href="../index.html">홈</a> &rsaquo; <span>종량제봉투 가격</span>
   </nav>
@@ -464,6 +472,8 @@ def gen_envlp_hub_page(sido_map):
   <div style="{GRID_STYLE}">
   {sido_cards}
   </div>
+  </div>
+  {AD_SIDEBAR}
 </div>
 """
     title = "전국 종량제봉투 가격 조회 — 지역별 쓰레기봉투 가격 | 우아트래시"
