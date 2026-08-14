@@ -26,6 +26,11 @@ jobs:
         env:
           DATA_GO_KR_API_KEY: ${{ secrets.DATA_GO_KR_API_KEY }}
 
+      - name: 종량제봉투 가격 데이터 수집
+        run: python scripts/fetch_envlp_data.py
+        env:
+          DATA_GO_KR_API_KEY: ${{ secrets.DATA_GO_KR_API_KEY }}
+
       - name: 페이지 생성
         run: python scripts/generate_pages.py
 
