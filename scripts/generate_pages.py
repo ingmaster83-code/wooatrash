@@ -85,6 +85,7 @@ HEADER_TMPL = """<header class="site-header">
 </header>
 
 <script src="{root}js/wooa-sites-bar.js"></script>
+<script src="{root}js/ad-dev-placeholder.js"></script>
 """
 
 AD_BANNER = '<div class="ad-banner ad-mid"><ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-6464921081676309" data-ad-slot="7080296704" data-ad-format="auto" data-full-width-responsive="true"></ins><script>(adsbygoogle = window.adsbygoogle || []).push({});</script></div>'
