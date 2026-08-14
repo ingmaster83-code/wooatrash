@@ -8,10 +8,17 @@ from pathlib import Path
 ROOT = Path(__file__).parent.parent
 DATA_PATH = ROOT / "data" / "trash_fee.json"
 SAMPLE_PATH = ROOT / "data" / "trash_fee_sample.json"
+ENVLP_DATA_PATH = ROOT / "data" / "envlp_price.json"
 DOCS_DIR = ROOT / "docs"
 REGION_DIR = DOCS_DIR / "지역"
+ENVLP_DIR = DOCS_DIR / "봉투"
 BASE_URL = "https://wooatrash.wooahouse.com"
 TODAY = date.today().isoformat()
+
+SIDO_NORMALIZE = {
+    "강원도": "강원특별자치도",
+    "전라북도": "전북특별자치도",
+}
 
 POPULAR_ITEMS = ["냉장고", "세탁기", "침대", "소파", "옷장", "에어컨", "책상"]
 
@@ -70,6 +77,7 @@ HEADER_TMPL = """<header class="site-header">
     <nav class="header-nav">
       <a href="{root}index.html">홈</a>
       <a href="{root}index.html#region">지역별</a>
+      <a href="{root}봉투/index.html">종량제봉투 가격</a>
       <a href="https://wooahouse.com" target="_blank" rel="noopener">WooaHouse &rarr;</a>
     </nav>
     <button class="mobile-menu-btn" aria-label="메뉴">☰</button>
@@ -83,11 +91,13 @@ AD_BANNER = '<div class="ad-banner ad-mid"><ins class="adsbygoogle" style="displ
 AD_SIDEBAR = '<div class="ad-banner ad-side" style="position:sticky;top:76px;"><ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-6464921081676309" data-ad-slot="1419180025" data-full-width-responsive="false"></ins><script>(adsbygoogle = window.adsbygoogle || []).push({});</script></div>'
 
 FOOTER_TMPL = """<footer style="background:#111827;color:#9CA3AF;padding:32px 20px;text-align:center;font-size:.85rem;margin-top:40px;">
-  <p>우아트래시 · 전국 대형폐기물 수수료 조회</p>
+  <p>우아트래시 · 전국 대형폐기물 수수료·종량제봉투 가격 조회</p>
   <p style="margin-top:8px;"><a href="{root}privacy.html" style="color:#9CA3AF;">개인정보처리방침</a> · <a href="https://wooahouse.com" target="_blank" rel="noopener" style="color:#9CA3AF;">WooaHouse</a></p>
-  <p style="margin-top:12px;color:#6B7280;">데이터 출처: 공공데이터포털 전국대형폐기물수거수수료정보표준데이터 (기준일 {today})</p>
+  <p style="margin-top:12px;color:#6B7280;">데이터 출처: 공공데이터포털 {source} (기준일 {today})</p>
 </footer>
 """
+SOURCE_TRASH_FEE = "전국대형폐기물수거수수료정보표준데이터"
+SOURCE_ENVLP = "전국종량제봉투가격표준데이터"
 
 
 def load_records():
@@ -98,7 +108,7 @@ def load_records():
     return data
 
 
-def page_shell(title, description, canonical, root, body, extra_head="", keywords=""):
+def page_shell(title, description, canonical, root, body, extra_head="", keywords="", source=SOURCE_TRASH_FEE):
     keywords_tag = f'\n  <meta name="keywords" content="{keywords}">' if keywords else ""
     return f"""<!DOCTYPE html>
 <html lang="ko">
@@ -118,7 +128,7 @@ def page_shell(title, description, canonical, root, body, extra_head="", keyword
 <body>
 {HEADER_TMPL.format(root=root)}
 {body}
-{FOOTER_TMPL.format(root=root, today=TODAY)}
+{FOOTER_TMPL.format(root=root, today=TODAY, source=source)}
 </body>
 </html>
 """
@@ -304,6 +314,15 @@ def gen_index_page(sido_map, records):
     {category_cards}
   </div>
 </div>
+<div style="max-width:1100px;margin:32px auto 0;padding:0 20px;">
+  <a href="봉투/index.html" style="display:flex;align-items:center;gap:16px;background:linear-gradient(135deg,#059669,#10B981);color:white;border-radius:14px;padding:22px 24px;text-decoration:none;">
+    <span style="font-size:2rem;">🧻</span>
+    <span style="flex:1;">
+      <strong style="display:block;font-size:1.05rem;margin-bottom:4px;">종량제봉투 가격도 확인하세요</strong>
+      <span style="opacity:.9;font-size:.88rem;">우리 동네 생활쓰레기·음식물쓰레기 봉투 가격 지역별 조회 &rarr;</span>
+    </span>
+  </a>
+</div>
 <div style="max-width:1100px;margin:0 auto;padding:32px 20px 50px;">
   <h2 style="font-size:1.1rem;margin-bottom:16px;" id="region">지역 선택</h2>
   <div style="{GRID_STYLE}">
@@ -318,12 +337,153 @@ def gen_index_page(sido_map, records):
     return page_shell(title, desc, canonical, "", body, keywords=keywords)
 
 
-def gen_sitemap(sido_map):
+def load_envlp_records():
+    if not ENVLP_DATA_PATH.exists():
+        return []
+    data = json.loads(ENVLP_DATA_PATH.read_text(encoding="utf-8"))
+    for r in data:
+        r["시도명"] = SIDO_NORMALIZE.get(r["시도명"], r["시도명"])
+    return data
+
+
+SIZE_ORDER = ["1L", "1.5L", "2L", "2.5L", "3L", "5L", "10L", "20L", "30L", "50L", "60L", "75L", "100L", "120L", "125L"]
+
+
+def gen_envlp_sigungu_page(sido, sigungu, items):
+    by_purpose = defaultdict(lambda: defaultdict(list))
+    for it in items:
+        by_purpose[it.get("용도", "기타")][it.get("봉투종류", "기타")].append(it)
+
+    sections = []
+    for purpose in sorted(by_purpose.keys()):
+        type_blocks = []
+        for envlp_type in sorted(by_purpose[purpose].keys()):
+            recs = by_purpose[purpose][envlp_type]
+            sizes = [s for s in SIZE_ORDER if any(r["가격"].get(s) for r in recs)]
+            if not sizes:
+                continue
+            head_cols = "".join(f'<th style="text-align:right;padding:8px 4px;">{s}</th>' for s in sizes)
+            rows = ""
+            for r in recs:
+                label = " · ".join(x for x in [r.get("처리방식", ""), r.get("사용대상", "")] if x and x != "기타") or "일반"
+                cells = "".join(
+                    f'<td style="text-align:right;padding:8px 4px;">{r["가격"][s]:,}원</td>' if r["가격"].get(s) else '<td style="text-align:right;padding:8px 4px;color:var(--text-muted);">-</td>'
+                    for s in sizes
+                )
+                rows += f'<tr><td style="padding:8px 4px;font-weight:600;white-space:nowrap;">{label}</td>{cells}</tr>'
+            type_blocks.append(f"""
+        <div style="margin-bottom:18px;">
+          <h3 style="font-size:.95rem;margin-bottom:10px;">{envlp_type}</h3>
+          <div style="overflow-x:auto;">
+          <table style="width:100%;border-collapse:collapse;font-size:.88rem;">
+            <thead><tr style="border-bottom:2px solid var(--border);"><th style="text-align:left;padding:8px 4px;">구분</th>{head_cols}</tr></thead>
+            <tbody>{rows}</tbody>
+          </table>
+          </div>
+        </div>""")
+        sections.append(f"""
+        <div class="fee-card" style="background:white;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.06);padding:20px;margin-bottom:16px;">
+          <h2 style="font-size:1.05rem;margin-bottom:14px;">{purpose} 봉투</h2>
+          {''.join(type_blocks)}
+        </div>
+        {AD_BANNER}""")
+
+    manage_org = items[0].get("관리부서명", "") if items else ""
+    manage_tel = items[0].get("관리부서전화번호", "") if items else ""
+    body = f"""
+<div style="max-width:1200px;margin:0 auto;padding:24px 20px 40px;display:flex;gap:24px;align-items:flex-start;">
+  <div style="flex:1;min-width:0;">
+  <nav style="font-size:.8rem;color:var(--text-muted);margin-bottom:16px;">
+    <a href="../../index.html">홈</a> &rsaquo; <a href="../index.html">종량제봉투 가격</a> &rsaquo; <a href="{sido}.html">{sido}</a> &rsaquo; <span>{sigungu}</span>
+  </nav>
+  <h1 style="font-size:1.5rem;margin-bottom:6px;">{sido} {sigungu} 종량제봉투 가격</h1>
+  <p style="color:var(--text-muted);font-size:.9rem;margin-bottom:20px;">관리부서: {manage_org} {('· ' + manage_tel) if manage_tel else ''}</p>
+  {''.join(sections)}
+  </div>
+  {AD_SIDEBAR}
+</div>
+"""
+    short_sg = short_name(sigungu)
+    title = f"{sido} {sigungu} 종량제봉투 가격 {TODAY[:4]} | 우아트래시"
+    desc = f"{sido} {sigungu}({short_sg}) 종량제봉투(생활쓰레기·음식물쓰레기) 용량별 가격을 확인하세요. 20L, 50L, 100L 등 규격봉투 가격 정보 제공."
+    keywords = f"{sigungu} 종량제봉투 가격, {short_sg} 쓰레기 봉투 가격, {sigungu} 종량제 봉투 가격, {sido} {sigungu} 봉투 가격"
+    canonical = f"{BASE_URL}/봉투/{sido}/{sigungu}.html"
+    return page_shell(title, desc, canonical, "../../", body, keywords=keywords, source=SOURCE_ENVLP)
+
+
+def gen_envlp_sido_page(sido, sigungu_list):
+    cards = "".join(
+        f"""<a href="{sido}/{sg}.html" class="region-card" style="display:block;background:white;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.06);padding:18px 20px;">
+          <strong>{sg}</strong>
+        </a>"""
+        for sg in sigungu_list
+    )
+    short_sido = SIDO_SHORT.get(sido, sido)
+    body = f"""
+<div style="max-width:1100px;margin:0 auto;padding:24px 20px 40px;">
+  <nav style="font-size:.8rem;color:var(--text-muted);margin-bottom:16px;">
+    <a href="../index.html">홈</a> &rsaquo; <a href="index.html">종량제봉투 가격</a> &rsaquo; <span>{sido}</span>
+  </nav>
+  <h1 style="font-size:1.5rem;margin-bottom:12px;">{sido} 종량제봉투 가격 — 시군구 선택 ({len(sigungu_list)}개 지역)</h1>
+  <p style="color:#374151;line-height:1.75;margin-bottom:20px;font-size:.95rem;">{sido}는 시·군·구별로 종량제봉투 가격이 다릅니다. 아래에서 거주 지역을 선택하면 생활쓰레기·음식물쓰레기 봉투의 용량별 가격을 확인할 수 있습니다.</p>
+  {AD_BANNER}
+  <h2 style="font-size:1rem;font-weight:700;margin:20px 0 12px;">{short_sido} 시군구 선택 ({len(sigungu_list)}개 지역)</h2>
+  <div style="{GRID_STYLE}">
+  {cards}
+  </div>
+</div>
+"""
+    title = f"{sido} 종량제봉투 가격 지역별 조회 | 우아트래시"
+    desc = f"{sido}({short_sido}) 내 시군구별 종량제봉투 가격을 확인하세요."
+    keywords = f"{sido} 종량제봉투 가격, {short_sido} 쓰레기 봉투 가격, {sido} 시군구 봉투 가격"
+    canonical = f"{BASE_URL}/봉투/{sido}.html"
+    return page_shell(title, desc, canonical, "../", body, keywords=keywords, source=SOURCE_ENVLP)
+
+
+def gen_envlp_hub_page(sido_map):
+    sido_cards = "".join(
+        f"""<a href="{sido}.html" class="region-card" style="display:block;background:white;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.06);padding:18px 20px;">
+          <strong>{sido}</strong><br><span style="color:var(--text-muted);font-size:.85rem;">{len(sgs)}개 지역</span>
+        </a>"""
+        for sido, sgs in sorted(sido_map.items())
+    )
+    body = f"""
+<div style="background:linear-gradient(135deg,#059669,#10B981);color:white;padding:44px 20px;text-align:center;">
+  <h1 style="font-size:1.8rem;font-weight:800;margin-bottom:10px;">🗑️ 전국 종량제봉투 가격 조회</h1>
+  <p style="opacity:.9;">우리 동네 종량제봉투(생활쓰레기·음식물쓰레기) 가격이 얼마인지 바로 확인하세요</p>
+</div>
+<div style="max-width:1100px;margin:24px auto 0;padding:0 20px;">
+  {AD_BANNER}
+</div>
+<div style="max-width:1100px;margin:0 auto;padding:32px 20px 50px;">
+  <nav style="font-size:.8rem;color:var(--text-muted);margin-bottom:16px;">
+    <a href="../index.html">홈</a> &rsaquo; <span>종량제봉투 가격</span>
+  </nav>
+  <h2 style="font-size:1.1rem;margin-bottom:16px;">지역 선택 ({len(sido_map)}개 시도)</h2>
+  <div style="{GRID_STYLE}">
+  {sido_cards}
+  </div>
+</div>
+"""
+    title = "전국 종량제봉투 가격 조회 — 지역별 쓰레기봉투 가격 | 우아트래시"
+    desc = "전국 시군구별 종량제봉투(생활쓰레기·음식물쓰레기) 용량별 가격을 무료로 확인하세요. 공공데이터 기반, 매달 업데이트."
+    keywords = "종량제봉투 가격, 쓰레기봉투 가격, 종량제 봉투 가격, 지역별 종량제봉투 가격"
+    canonical = f"{BASE_URL}/봉투/index.html"
+    return page_shell(title, desc, canonical, "../", body, keywords=keywords, source=SOURCE_ENVLP)
+
+
+def gen_sitemap(sido_map, envlp_sido_map=None):
     urls = [f"  <url><loc>{BASE_URL}/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>"]
     for sido, sgs in sido_map.items():
         urls.append(f"  <url><loc>{BASE_URL}/지역/{sido}.html</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>")
         for sg in sgs:
             urls.append(f"  <url><loc>{BASE_URL}/지역/{sido}/{sg}.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>")
+    if envlp_sido_map:
+        urls.append(f"  <url><loc>{BASE_URL}/봉투/index.html</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>")
+        for sido, sgs in envlp_sido_map.items():
+            urls.append(f"  <url><loc>{BASE_URL}/봉투/{sido}.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>")
+            for sg in sgs:
+                urls.append(f"  <url><loc>{BASE_URL}/봉투/{sido}/{sg}.html</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>")
     xml = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' + "\n".join(urls) + "\n</urlset>\n"
     (DOCS_DIR / "sitemap.xml").write_text(xml, encoding="utf-8")
 
@@ -351,7 +511,28 @@ def main():
     (DOCS_DIR / "index.html").write_text(gen_index_page(sido_map, records), encoding="utf-8")
     generated += 1
 
-    gen_sitemap(sido_map)
+    envlp_records = load_envlp_records()
+    print(f"{len(envlp_records)}건 로드 (종량제봉투)")
+    envlp_sido_map = {}
+    if envlp_records:
+        envlp_by_sido_sigungu = defaultdict(lambda: defaultdict(list))
+        for r in envlp_records:
+            envlp_by_sido_sigungu[r["시도명"]][r["시군구명"]].append(r)
+        envlp_sido_map = {sido: sorted(sgs.keys()) for sido, sgs in envlp_by_sido_sigungu.items()}
+
+        ENVLP_DIR.mkdir(parents=True, exist_ok=True)
+        (ENVLP_DIR / "index.html").write_text(gen_envlp_hub_page(envlp_sido_map), encoding="utf-8")
+        generated += 1
+        for sido, sgs in envlp_by_sido_sigungu.items():
+            sido_dir = ENVLP_DIR / sido
+            sido_dir.mkdir(parents=True, exist_ok=True)
+            (ENVLP_DIR / f"{sido}.html").write_text(gen_envlp_sido_page(sido, sorted(sgs.keys())), encoding="utf-8")
+            generated += 1
+            for sg, items in sgs.items():
+                (sido_dir / f"{sg}.html").write_text(gen_envlp_sigungu_page(sido, sg, items), encoding="utf-8")
+                generated += 1
+
+    gen_sitemap(sido_map, envlp_sido_map)
     print(f"총 {generated}개 페이지 생성 완료")
 
 
