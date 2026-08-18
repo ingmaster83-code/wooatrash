@@ -9,9 +9,11 @@ ROOT = Path(__file__).parent.parent
 DATA_PATH = ROOT / "data" / "trash_fee.json"
 SAMPLE_PATH = ROOT / "data" / "trash_fee_sample.json"
 ENVLP_DATA_PATH = ROOT / "data" / "envlp_price.json"
+SALEPLACE_DATA_PATH = ROOT / "data" / "saleplace.json"
 DOCS_DIR = ROOT / "docs"
 REGION_DIR = DOCS_DIR / "지역"
 ENVLP_DIR = DOCS_DIR / "봉투"
+SALEPLACE_DIR = DOCS_DIR / "판매소"
 BASE_URL = "https://wooatrash.wooahouse.com"
 TODAY = date.today().isoformat()
 
@@ -78,6 +80,7 @@ HEADER_TMPL = """<header class="site-header">
       <a href="{root}index.html">홈</a>
       <a href="{root}index.html#region">지역별</a>
       <a href="{root}봉투/index.html">종량제봉투 가격</a>
+      <a href="{root}판매소/index.html">봉투 판매소</a>
       <a href="https://wooahouse.com" target="_blank" rel="noopener">WooaHouse &rarr;</a>
     </nav>
     <button class="mobile-menu-btn" aria-label="메뉴">☰</button>
@@ -99,6 +102,7 @@ FOOTER_TMPL = """<footer style="background:#111827;color:#9CA3AF;padding:32px 20
 """
 SOURCE_TRASH_FEE = "전국대형폐기물수거수수료정보표준데이터"
 SOURCE_ENVLP = "전국종량제봉투가격표준데이터"
+SOURCE_SALEPLACE = "전국종량제봉투판매소표준데이터"
 
 
 def load_records():
@@ -318,12 +322,19 @@ def gen_index_page(sido_map, records):
     <div style="{GRID_STYLE.replace('220px','160px')}">
       {category_cards}
     </div>
-    <div style="margin:32px 0 0;">
+    <div style="margin:32px 0 0;display:grid;gap:14px;">
       <a href="봉투/index.html" style="display:flex;align-items:center;gap:16px;background:linear-gradient(135deg,#059669,#10B981);color:white;border-radius:14px;padding:22px 24px;text-decoration:none;">
         <span style="font-size:2rem;">🧻</span>
         <span style="flex:1;">
           <strong style="display:block;font-size:1.05rem;margin-bottom:4px;">종량제봉투 가격도 확인하세요</strong>
           <span style="opacity:.9;font-size:.88rem;">우리 동네 생활쓰레기·음식물쓰레기 봉투 가격 지역별 조회 &rarr;</span>
+        </span>
+      </a>
+      <a href="판매소/index.html" style="display:flex;align-items:center;gap:16px;background:linear-gradient(135deg,#7C3AED,#A855F7);color:white;border-radius:14px;padding:22px 24px;text-decoration:none;">
+        <span style="font-size:2rem;">🏪</span>
+        <span style="flex:1;">
+          <strong style="display:block;font-size:1.05rem;margin-bottom:4px;">종량제봉투 파는곳도 확인하세요</strong>
+          <span style="opacity:.9;font-size:.88rem;">우리 동네 종량제봉투 판매소(편의점·마트) 위치 조회 &rarr;</span>
         </span>
       </a>
     </div>
@@ -472,6 +483,15 @@ def gen_envlp_hub_page(sido_map):
   <div style="{GRID_STYLE}">
   {sido_cards}
   </div>
+  <div style="margin:32px 0 0;">
+    <a href="../판매소/index.html" style="display:flex;align-items:center;gap:16px;background:linear-gradient(135deg,#7C3AED,#A855F7);color:white;border-radius:14px;padding:22px 24px;text-decoration:none;">
+      <span style="font-size:2rem;">🏪</span>
+      <span style="flex:1;">
+        <strong style="display:block;font-size:1.05rem;margin-bottom:4px;">종량제봉투 파는곳도 확인하세요</strong>
+        <span style="opacity:.9;font-size:.88rem;">우리 동네 종량제봉투 판매소(편의점·마트) 위치 조회 &rarr;</span>
+      </span>
+    </a>
+  </div>
   </div>
   {AD_SIDEBAR}
 </div>
@@ -483,7 +503,160 @@ def gen_envlp_hub_page(sido_map):
     return page_shell(title, desc, canonical, "../", body, keywords=keywords, source=SOURCE_ENVLP)
 
 
-def gen_sitemap(sido_map, envlp_sido_map=None):
+SALEPLACE_SGG_FIX = {
+    ("전라남도", "광산구"): "광주광역시",
+}
+
+
+def load_saleplace_records():
+    if not SALEPLACE_DATA_PATH.exists():
+        return []
+    data = json.loads(SALEPLACE_DATA_PATH.read_text(encoding="utf-8"))
+    out = []
+    for r in data:
+        sido = SIDO_NORMALIZE.get(r["시도명"], r["시도명"])
+        sgg = r.get("시군구명", "").strip()
+        if not sgg or sgg == "없음":
+            sgg = sido
+        elif sgg.endswith("청") and sgg[:-1] and sgg[-2] in "시군구":
+            sgg = sgg[:-1]
+        sido = SALEPLACE_SGG_FIX.get((sido, sgg), sido)
+        r["시도명"] = sido
+        r["시군구명"] = sgg
+        out.append(r)
+    return out
+
+
+def gen_saleplace_sigungu_page(sido, sigungu, items):
+    items = sorted(items, key=lambda x: x.get("판매소명", ""))
+    rows = "".join(
+        f"""<tr>
+          <td style="padding:8px 6px;font-weight:600;">{it.get('판매소명','')}{' <span style="background:#FEF3C7;color:#92400E;font-size:.72rem;padding:1px 6px;border-radius:6px;margin-left:4px;white-space:nowrap;">대형폐기물도 취급</span>' if it.get('대형폐기물스티커판매여부')=='Y' else ''}</td>
+          <td style="padding:8px 6px;color:#374151;">{it.get('도로명주소','') or it.get('지번주소','') or '-'}</td>
+          <td style="padding:8px 6px;color:var(--text-muted);white-space:nowrap;">{it.get('전화번호','') or '-'}</td>
+        </tr>"""
+        for it in items
+    )
+    sticker_count = sum(1 for it in items if it.get("대형폐기물스티커판매여부") == "Y")
+    manage_org = items[0].get("관리기관명", "") if items else ""
+    body = f"""
+<div style="max-width:1200px;margin:0 auto;padding:24px 20px 40px;display:flex;gap:24px;align-items:flex-start;">
+  <div style="flex:1;min-width:0;">
+  <nav style="font-size:.8rem;color:var(--text-muted);margin-bottom:16px;">
+    <a href="../../index.html">홈</a> &rsaquo; <a href="../index.html">봉투 판매소</a> &rsaquo; <a href="{sido}.html">{sido}</a> &rsaquo; <span>{sigungu}</span>
+  </nav>
+  <h1 style="font-size:1.5rem;margin-bottom:6px;">{sido} {sigungu} 종량제봉투 판매소</h1>
+  <p style="color:var(--text-muted);font-size:.9rem;margin-bottom:6px;">관리기관: {manage_org} · 총 {len(items)}곳{f' (대형폐기물 스티커 동시 판매 {sticker_count}곳)' if sticker_count else ''}</p>
+  <input type="text" id="filterInput" placeholder="판매소명 또는 주소로 검색" oninput="filterRows()" style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:10px;font-size:.9rem;margin:12px 0 16px;box-sizing:border-box;">
+  {AD_BANNER}
+  <div class="fee-card" style="background:white;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.06);padding:20px;overflow-x:auto;">
+    <table id="saleTable" style="width:100%;border-collapse:collapse;font-size:.88rem;">
+      <thead><tr style="border-bottom:2px solid var(--border);">
+        <th style="text-align:left;padding:8px 6px;white-space:nowrap;">판매소명</th>
+        <th style="text-align:left;padding:8px 6px;">주소</th>
+        <th style="text-align:left;padding:8px 6px;white-space:nowrap;">전화번호</th>
+      </tr></thead>
+      <tbody>{rows}</tbody>
+    </table>
+  </div>
+  </div>
+  {AD_SIDEBAR}
+</div>
+<script>
+function filterRows(){{
+  const q = document.getElementById('filterInput').value.trim().toLowerCase();
+  document.querySelectorAll('#saleTable tbody tr').forEach(tr => {{
+    tr.style.display = tr.textContent.toLowerCase().includes(q) ? '' : 'none';
+  }});
+}}
+</script>
+"""
+    short_sg = short_name(sigungu)
+    title = f"{sido} {sigungu} 종량제봉투 파는곳 {TODAY[:4]} | 우아트래시"
+    desc = f"{sido} {sigungu}({short_sg}) 종량제봉투 판매소 {len(items)}곳의 위치와 연락처를 확인하세요. 편의점, 마트, 철물점 등 판매처 안내."
+    keywords = f"{sigungu} 종량제봉투 파는곳, {short_sg} 종량제봉투 판매소, {sigungu} 쓰레기봉투 파는곳, {sido} {sigungu} 봉투 판매점"
+    canonical = f"{BASE_URL}/판매소/{sido}/{sigungu}.html"
+    return page_shell(title, desc, canonical, "../../", body, keywords=keywords, source=SOURCE_SALEPLACE)
+
+
+def gen_saleplace_sido_page(sido, sigungu_list):
+    cards = "".join(
+        f"""<a href="{sido}/{sg}.html" class="region-card" style="display:block;background:white;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.06);padding:18px 20px;">
+          <strong>{sg}</strong>
+        </a>"""
+        for sg in sigungu_list
+    )
+    short_sido = SIDO_SHORT.get(sido, sido)
+    body = f"""
+<div style="max-width:1200px;margin:0 auto;padding:24px 20px 40px;display:flex;gap:24px;align-items:flex-start;">
+  <div style="flex:1;min-width:0;">
+  <nav style="font-size:.8rem;color:var(--text-muted);margin-bottom:16px;">
+    <a href="../index.html">홈</a> &rsaquo; <a href="index.html">봉투 판매소</a> &rsaquo; <span>{sido}</span>
+  </nav>
+  <h1 style="font-size:1.5rem;margin-bottom:12px;">{sido} 종량제봉투 판매소 — 시군구 선택 ({len(sigungu_list)}개 지역)</h1>
+  <p style="color:#374151;line-height:1.75;margin-bottom:20px;font-size:.95rem;">공공데이터포털에 등록된 {sido} 지역 종량제봉투 판매소 정보입니다. 등록 지역만 제공되어 일부 시군구는 목록에 없을 수 있습니다.</p>
+  {AD_BANNER}
+  <h2 style="font-size:1rem;font-weight:700;margin:20px 0 12px;">{short_sido} 시군구 선택 ({len(sigungu_list)}개 지역)</h2>
+  <div style="{GRID_STYLE}">
+  {cards}
+  </div>
+  </div>
+  {AD_SIDEBAR}
+</div>
+"""
+    title = f"{sido} 종량제봉투 판매소 찾기 | 우아트래시"
+    desc = f"{sido}({short_sido}) 내 시군구별 종량제봉투 판매소 위치를 확인하세요."
+    keywords = f"{sido} 종량제봉투 판매소, {short_sido} 종량제봉투 파는곳, {sido} 봉투 파는곳"
+    canonical = f"{BASE_URL}/판매소/{sido}.html"
+    return page_shell(title, desc, canonical, "../", body, keywords=keywords, source=SOURCE_SALEPLACE)
+
+
+def gen_saleplace_hub_page(sido_map):
+    sido_cards = "".join(
+        f"""<a href="{sido}.html" class="region-card" style="display:block;background:white;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.06);padding:18px 20px;">
+          <strong>{sido}</strong><br><span style="color:var(--text-muted);font-size:.85rem;">{len(sgs)}개 지역</span>
+        </a>"""
+        for sido, sgs in sorted(sido_map.items())
+    )
+    body = f"""
+<div style="background:linear-gradient(135deg,#7C3AED,#A855F7);color:white;padding:44px 20px;text-align:center;">
+  <h1 style="font-size:1.8rem;font-weight:800;margin-bottom:10px;">🏪 종량제봉투 판매소 찾기</h1>
+  <p style="opacity:.9;">우리 동네 종량제봉투 파는곳(편의점·마트·철물점)을 바로 확인하세요</p>
+</div>
+<div style="max-width:1100px;margin:24px auto 0;padding:0 20px;">
+  {AD_BANNER}
+</div>
+<div style="max-width:1200px;margin:0 auto;padding:32px 20px 50px;display:flex;gap:24px;align-items:flex-start;">
+  <div style="flex:1;min-width:0;">
+  <nav style="font-size:.8rem;color:var(--text-muted);margin-bottom:16px;">
+    <a href="../index.html">홈</a> &rsaquo; <span>봉투 판매소</span>
+  </nav>
+  <p style="color:#374151;line-height:1.75;margin-bottom:16px;font-size:.95rem;">공공데이터포털에 등록된 지역만 제공되어 전국 모든 시군구를 포함하지는 않습니다. 우리 동네가 없다면 관할 구청·주민센터에 문의해주세요.</p>
+  <h2 style="font-size:1.1rem;margin-bottom:16px;">지역 선택 ({len(sido_map)}개 시도)</h2>
+  <div style="{GRID_STYLE}">
+  {sido_cards}
+  </div>
+  <div style="margin:32px 0 0;">
+    <a href="../봉투/index.html" style="display:flex;align-items:center;gap:16px;background:linear-gradient(135deg,#059669,#10B981);color:white;border-radius:14px;padding:22px 24px;text-decoration:none;">
+      <span style="font-size:2rem;">🧻</span>
+      <span style="flex:1;">
+        <strong style="display:block;font-size:1.05rem;margin-bottom:4px;">종량제봉투 가격도 확인하세요</strong>
+        <span style="opacity:.9;font-size:.88rem;">우리 동네 생활쓰레기·음식물쓰레기 봉투 가격 지역별 조회 &rarr;</span>
+      </span>
+    </a>
+  </div>
+  </div>
+  {AD_SIDEBAR}
+</div>
+"""
+    title = "전국 종량제봉투 판매소 찾기 — 봉투 파는곳 지역별 조회 | 우아트래시"
+    desc = "전국 종량제봉투 판매소(편의점, 마트, 철물점) 위치와 연락처를 무료로 확인하세요. 공공데이터 기반."
+    keywords = "종량제봉투 파는곳, 종량제봉투 판매소, 쓰레기봉투 파는곳, 봉투 파는곳"
+    canonical = f"{BASE_URL}/판매소/index.html"
+    return page_shell(title, desc, canonical, "../", body, keywords=keywords, source=SOURCE_SALEPLACE)
+
+
+def gen_sitemap(sido_map, envlp_sido_map=None, saleplace_sido_map=None):
     urls = [f"  <url><loc>{BASE_URL}/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>"]
     for sido, sgs in sido_map.items():
         urls.append(f"  <url><loc>{BASE_URL}/지역/{sido}.html</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>")
@@ -495,6 +668,12 @@ def gen_sitemap(sido_map, envlp_sido_map=None):
             urls.append(f"  <url><loc>{BASE_URL}/봉투/{sido}.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>")
             for sg in sgs:
                 urls.append(f"  <url><loc>{BASE_URL}/봉투/{sido}/{sg}.html</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>")
+    if saleplace_sido_map:
+        urls.append(f"  <url><loc>{BASE_URL}/판매소/index.html</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>")
+        for sido, sgs in saleplace_sido_map.items():
+            urls.append(f"  <url><loc>{BASE_URL}/판매소/{sido}.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>")
+            for sg in sgs:
+                urls.append(f"  <url><loc>{BASE_URL}/판매소/{sido}/{sg}.html</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>")
     xml = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' + "\n".join(urls) + "\n</urlset>\n"
     (DOCS_DIR / "sitemap.xml").write_text(xml, encoding="utf-8")
 
@@ -543,7 +722,28 @@ def main():
                 (sido_dir / f"{sg}.html").write_text(gen_envlp_sigungu_page(sido, sg, items), encoding="utf-8")
                 generated += 1
 
-    gen_sitemap(sido_map, envlp_sido_map)
+    saleplace_records = load_saleplace_records()
+    print(f"{len(saleplace_records)}건 로드 (종량제봉투 판매소)")
+    saleplace_sido_map = {}
+    if saleplace_records:
+        saleplace_by_sido_sigungu = defaultdict(lambda: defaultdict(list))
+        for r in saleplace_records:
+            saleplace_by_sido_sigungu[r["시도명"]][r["시군구명"]].append(r)
+        saleplace_sido_map = {sido: sorted(sgs.keys()) for sido, sgs in saleplace_by_sido_sigungu.items()}
+
+        SALEPLACE_DIR.mkdir(parents=True, exist_ok=True)
+        (SALEPLACE_DIR / "index.html").write_text(gen_saleplace_hub_page(saleplace_sido_map), encoding="utf-8")
+        generated += 1
+        for sido, sgs in saleplace_by_sido_sigungu.items():
+            sido_dir = SALEPLACE_DIR / sido
+            sido_dir.mkdir(parents=True, exist_ok=True)
+            (SALEPLACE_DIR / f"{sido}.html").write_text(gen_saleplace_sido_page(sido, sorted(sgs.keys())), encoding="utf-8")
+            generated += 1
+            for sg, items in sgs.items():
+                (sido_dir / f"{sg}.html").write_text(gen_saleplace_sigungu_page(sido, sg, items), encoding="utf-8")
+                generated += 1
+
+    gen_sitemap(sido_map, envlp_sido_map, saleplace_sido_map)
     print(f"총 {generated}개 페이지 생성 완료")
 
 
