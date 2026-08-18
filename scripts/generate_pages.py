@@ -4,6 +4,7 @@ import json
 from collections import defaultdict
 from datetime import date
 from pathlib import Path
+from urllib.parse import quote
 
 ROOT = Path(__file__).parent.parent
 DATA_PATH = ROOT / "data" / "trash_fee.json"
@@ -527,13 +528,29 @@ def load_saleplace_records():
     return out
 
 
+def kakao_map_link(name, addr, lat, lng):
+    if lat and lng:
+        return f"https://map.kakao.com/link/map/{quote(name)},{lat},{lng}"
+    if addr:
+        return f"https://map.kakao.com/link/search/{quote(addr + ' ' + name)}"
+    return ""
+
+
 def gen_saleplace_sigungu_page(sido, sigungu, items):
     items = sorted(items, key=lambda x: x.get("판매소명", ""))
+
+    def map_cell(it):
+        addr = it.get("도로명주소", "") or it.get("지번주소", "")
+        link = kakao_map_link(it.get("판매소명", ""), addr, it.get("위도", ""), it.get("경도", ""))
+        if not link:
+            return '<span style="color:var(--text-muted);">-</span>'
+        return f'<a href="{link}" style="color:var(--primary);font-weight:600;">🗺️ 위치보기</a>'
+
     rows = "".join(
         f"""<tr>
           <td style="padding:8px 6px;font-weight:600;">{it.get('판매소명','')}{' <span style="background:#FEF3C7;color:#92400E;font-size:.72rem;padding:1px 6px;border-radius:6px;margin-left:4px;white-space:nowrap;">대형폐기물도 취급</span>' if it.get('대형폐기물스티커판매여부')=='Y' else ''}</td>
           <td style="padding:8px 6px;color:#374151;">{it.get('도로명주소','') or it.get('지번주소','') or '-'}</td>
-          <td style="padding:8px 6px;color:var(--text-muted);white-space:nowrap;">{it.get('전화번호','') or '-'}</td>
+          <td style="padding:8px 6px;white-space:nowrap;">{map_cell(it)}</td>
         </tr>"""
         for it in items
     )
@@ -554,7 +571,7 @@ def gen_saleplace_sigungu_page(sido, sigungu, items):
       <thead><tr style="border-bottom:2px solid var(--border);">
         <th style="text-align:left;padding:8px 6px;white-space:nowrap;">판매소명</th>
         <th style="text-align:left;padding:8px 6px;">주소</th>
-        <th style="text-align:left;padding:8px 6px;white-space:nowrap;">전화번호</th>
+        <th style="text-align:left;padding:8px 6px;white-space:nowrap;">위치</th>
       </tr></thead>
       <tbody>{rows}</tbody>
     </table>
