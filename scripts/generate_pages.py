@@ -179,8 +179,7 @@ def gen_sigungu_page(sido, sigungu, items):
             </tr></thead>
             <tbody>{rows}</tbody>
           </table>
-        </div>
-        {AD_BANNER}""")
+        </div>""")
 
     manage_org = items[0].get("관리기관명", "") if items else ""
     body = f"""
@@ -191,6 +190,7 @@ def gen_sigungu_page(sido, sigungu, items):
   </nav>
   <h1 style="font-size:1.5rem;margin-bottom:6px;">{sido} {sigungu} 대형폐기물 수수료</h1>
   <p style="color:var(--text-muted);font-size:.9rem;margin-bottom:20px;">관리기관: {manage_org} · 품목 {len(items)}개</p>
+  {AD_BANNER}
   {''.join(sections)}
   </div>
   {AD_SIDEBAR}
