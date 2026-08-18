@@ -402,8 +402,7 @@ def gen_envlp_sigungu_page(sido, sigungu, items):
         <div class="fee-card" style="background:white;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.06);padding:20px;margin-bottom:16px;">
           <h2 style="font-size:1.05rem;margin-bottom:14px;">{purpose} 봉투</h2>
           {''.join(type_blocks)}
-        </div>
-        {AD_BANNER}""")
+        </div>""")
 
     manage_org = items[0].get("관리부서명", "") if items else ""
     manage_tel = items[0].get("관리부서전화번호", "") if items else ""
@@ -415,6 +414,7 @@ def gen_envlp_sigungu_page(sido, sigungu, items):
   </nav>
   <h1 style="font-size:1.5rem;margin-bottom:6px;">{sido} {sigungu} 종량제봉투 가격</h1>
   <p style="color:var(--text-muted);font-size:.9rem;margin-bottom:20px;">관리부서: {manage_org} {('· ' + manage_tel) if manage_tel else ''}</p>
+  {AD_BANNER}
   {''.join(sections)}
   </div>
   {AD_SIDEBAR}
