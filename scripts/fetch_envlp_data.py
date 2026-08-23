@@ -1,43 +1,47 @@
-"""공공데이터포털 전국종량제봉투가격표준데이터 API에서 전체 데이터를 받아 data/envlp_price.json으로 저장"""
+"""공공데이터포털 전국종량제봉투가격표준데이터를 받아 data/envlp_price.json으로 저장
+
+fetch_data.py와 동일한 이유(api.data.go.kr가 GitHub Actions에서만 403)로
+www.data.go.kr/download/standard.json 직접 다운로드 방식으로 전환.
+"""
 import json
-import os
 import time
 from pathlib import Path
 
 import requests
 
-try:
-    from dotenv import load_dotenv
-    load_dotenv()
-except ImportError:
-    pass
-
 ROOT = Path(__file__).parent.parent
 OUT_PATH = ROOT / "data" / "envlp_price.json"
 
-API_URL = "https://api.data.go.kr/openapi/tn_pubr_public_weighted_envlp_api"
-SERVICE_KEY = os.environ.get("DATA_GO_KR_API_KEY", "")
-NUM_OF_ROWS = 1000
+PUBLIC_DATA_PK = "15025538"
+SVC_TABLE_NM = "tn_pubr_public_weighted_envlp_svc"
+DOWNLOAD_URL = "https://www.data.go.kr/download/standard.json"
+COL_LIST = [
+    "CTPRVN_NM", "SIGNGU_NM", "WEIGHTED_ENVLP_TYPE", "WEIGHTED_ENVLP_MTHD",
+    "WEIGHTED_ENVLP_PRPOS", "WEIGHTED_ENVLP_TRGET",
+    "PRICE_1", "PRICE_1_HALF", "PRICE_2", "PRICE_2_HALF", "PRICE_3", "PRICE_5",
+    "PRICE_10", "PRICE_20", "PRICE_30", "PRICE_50", "PRICE_60", "PRICE_75",
+    "PRICE_100", "PRICE_120", "PRICE_125",
+    "CHRG_DEPT_NM", "PHONE_NUMBER", "REFERENCE_DATE",
+]
+PER_PAGE = 10000
 
 SIZE_FIELDS = [
-    ("price1", "1L"), ("price1Half", "1.5L"), ("price2", "2L"), ("price2Half", "2.5L"),
-    ("price3", "3L"), ("price5", "5L"), ("price10", "10L"), ("price20", "20L"),
-    ("price30", "30L"), ("price50", "50L"), ("price60", "60L"), ("price75", "75L"),
-    ("price100", "100L"), ("price120", "120L"), ("price125", "125L"),
+    ("PRICE_1", "1L"), ("PRICE_1_HALF", "1.5L"), ("PRICE_2", "2L"), ("PRICE_2_HALF", "2.5L"),
+    ("PRICE_3", "3L"), ("PRICE_5", "5L"), ("PRICE_10", "10L"), ("PRICE_20", "20L"),
+    ("PRICE_30", "30L"), ("PRICE_50", "50L"), ("PRICE_60", "60L"), ("PRICE_75", "75L"),
+    ("PRICE_100", "100L"), ("PRICE_120", "120L"), ("PRICE_125", "125L"),
 ]
 
 FIELD_MAP = {
-    "ctprvnNm": "시도명",
-    "signguNm": "시군구명",
-    "weightedEnvlpType": "봉투종류",
-    "weightedEnvlpMthd": "처리방식",
-    "weightedEnvlpPrpos": "용도",
-    "weightedEnvlpTrget": "사용대상",
-    "chrgDeptNm": "관리부서명",
-    "phoneNumber": "관리부서전화번호",
-    "referenceDate": "데이터기준일자",
-    "insttCode": "제공기관코드",
-    "insttNm": "제공기관명",
+    "CTPRVN_NM": "시도명",
+    "SIGNGU_NM": "시군구명",
+    "WEIGHTED_ENVLP_TYPE": "봉투종류",
+    "WEIGHTED_ENVLP_MTHD": "처리방식",
+    "WEIGHTED_ENVLP_PRPOS": "용도",
+    "WEIGHTED_ENVLP_TRGET": "사용대상",
+    "CHRG_DEPT_NM": "관리부서명",
+    "PHONE_NUMBER": "관리부서전화번호",
+    "REFERENCE_DATE": "데이터기준일자",
 }
 
 
@@ -65,26 +69,17 @@ def fetch_all():
     all_records = []
     page = 1
     while True:
-        params = {
-            "serviceKey": SERVICE_KEY,
-            "pageNo": page,
-            "numOfRows": NUM_OF_ROWS,
-            "type": "json",
-        }
-        resp = requests.get(API_URL, params=params, timeout=30)
+        params = [("publicDataPk", PUBLIC_DATA_PK)]
+        params += [("colNmList", c) for c in COL_LIST]
+        params += [
+            ("perPage", PER_PAGE),
+            ("page", page),
+            ("svcTableNm", SVC_TABLE_NM),
+            ("totalCount", "999999"),
+        ]
+        resp = requests.get(DOWNLOAD_URL, params=params, timeout=30)
         resp.raise_for_status()
-        data = resp.json()
-
-        header = data.get("header", {})
-        if header.get("resultCode") not in (None, "00"):
-            raise SystemExit(f"API 오류: {header}")
-
-        body = data.get("body", {})
-        items = body.get("items", [])
-        if isinstance(items, dict):
-            items = items.get("item", [])
-        if isinstance(items, dict):
-            items = [items]
+        items = resp.json()
 
         if not items:
             break
@@ -92,19 +87,15 @@ def fetch_all():
         all_records.extend(normalize(it) for it in items)
         print(f"  {page}페이지 완료 (누적 {len(all_records)}건)")
 
-        total = int(body.get("totalCount", 0))
-        if len(all_records) >= total or len(items) < NUM_OF_ROWS:
+        if len(items) < PER_PAGE:
             break
         page += 1
-        time.sleep(0.2)
+        time.sleep(0.3)
 
     return all_records
 
 
 def main():
-    if not SERVICE_KEY:
-        raise SystemExit("DATA_GO_KR_API_KEY 환경변수가 설정되지 않았습니다.")
-
     print("전국종량제봉투가격 수집 시작...")
     records = fetch_all()
     print(f"총 {len(records)}건 수집 완료")
