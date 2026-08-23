@@ -1,38 +1,40 @@
 # -*- coding: utf-8 -*-
-"""공공데이터포털 전국종량제봉투판매소표준데이터 API에서 전체 데이터를 받아 data/saleplace.json으로 저장"""
+"""공공데이터포털 전국종량제봉투판매소표준데이터를 받아 data/saleplace.json으로 저장
+
+fetch_data.py와 동일한 이유(api.data.go.kr가 GitHub Actions에서만 403)로
+www.data.go.kr/download/standard.json 직접 다운로드 방식으로 전환.
+"""
 import json
-import os
 import time
 from pathlib import Path
 
 import requests
 
-try:
-    from dotenv import load_dotenv
-    load_dotenv()
-except ImportError:
-    pass
-
 ROOT = Path(__file__).parent.parent
 OUT_PATH = ROOT / "data" / "saleplace.json"
 
-API_URL = "https://api.data.go.kr/openapi/tn_pubr_public_std_gar_bag_api"
-SERVICE_KEY = os.environ.get("DATA_GO_KR_API_KEY", "")
-NUM_OF_ROWS = 1000
+PUBLIC_DATA_PK = "15114144"
+SVC_TABLE_NM = "tn_pubr_public_std_gar_bag_svc"
+DOWNLOAD_URL = "https://www.data.go.kr/download/standard.json"
+COL_LIST = [
+    "STO_NM", "CTPV_NM", "SGG_NM", "LCTN_ROAD_NM_ADDR", "LCTN_LOTNO_ADDR",
+    "LAT", "LOT", "LAR_WAS_STI_YN", "BUSI_COD_NM", "TELNO", "MNG_INST_NM", "CRTR_YMD",
+]
+PER_PAGE = 10000
 
 FIELD_MAP = {
-    "stoNm": "판매소명",
-    "ctpvNm": "시도명",
-    "sggNm": "시군구명",
-    "lctnRoadNmAddr": "도로명주소",
-    "lctnLotnoAddr": "지번주소",
-    "lat": "위도",
-    "lot": "경도",
-    "larWasStiYn": "대형폐기물스티커판매여부",
-    "busiCodNm": "영업상태명",
-    "telno": "전화번호",
-    "mngInstNm": "관리기관명",
-    "crtrYmd": "데이터기준일자",
+    "STO_NM": "판매소명",
+    "CTPV_NM": "시도명",
+    "SGG_NM": "시군구명",
+    "LCTN_ROAD_NM_ADDR": "도로명주소",
+    "LCTN_LOTNO_ADDR": "지번주소",
+    "LAT": "위도",
+    "LOT": "경도",
+    "LAR_WAS_STI_YN": "대형폐기물스티커판매여부",
+    "BUSI_COD_NM": "영업상태명",
+    "TELNO": "전화번호",
+    "MNG_INST_NM": "관리기관명",
+    "CRTR_YMD": "데이터기준일자",
 }
 
 
@@ -50,26 +52,17 @@ def fetch_all():
     all_records = []
     page = 1
     while True:
-        params = {
-            "serviceKey": SERVICE_KEY,
-            "pageNo": page,
-            "numOfRows": NUM_OF_ROWS,
-            "type": "json",
-        }
-        resp = requests.get(API_URL, params=params, timeout=30)
+        params = [("publicDataPk", PUBLIC_DATA_PK)]
+        params += [("colNmList", c) for c in COL_LIST]
+        params += [
+            ("perPage", PER_PAGE),
+            ("page", page),
+            ("svcTableNm", SVC_TABLE_NM),
+            ("totalCount", "999999"),
+        ]
+        resp = requests.get(DOWNLOAD_URL, params=params, timeout=30)
         resp.raise_for_status()
-        data = resp.json()
-
-        header = data.get("header", {})
-        if header.get("resultCode") not in (None, "00"):
-            raise SystemExit(f"API 오류: {header}")
-
-        body = data.get("body", {})
-        items = body.get("items", [])
-        if isinstance(items, dict):
-            items = items.get("item", [])
-        if isinstance(items, dict):
-            items = [items]
+        items = resp.json()
 
         if not items:
             break
@@ -77,19 +70,15 @@ def fetch_all():
         all_records.extend(normalize(it) for it in items)
         print(f"  {page}페이지 완료 (누적 {len(all_records)}건)")
 
-        total = int(body.get("totalCount", 0))
-        if len(all_records) >= total or len(items) < NUM_OF_ROWS:
+        if len(items) < PER_PAGE:
             break
         page += 1
-        time.sleep(0.2)
+        time.sleep(0.3)
 
     return all_records
 
 
 def main():
-    if not SERVICE_KEY:
-        raise SystemExit("DATA_GO_KR_API_KEY 환경변수가 설정되지 않았습니다.")
-
     print("전국종량제봉투판매소 수집 시작...")
     records = fetch_all()
     print(f"총 {len(records)}건 수집 완료")
