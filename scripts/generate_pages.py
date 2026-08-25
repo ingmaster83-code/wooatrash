@@ -11,10 +11,12 @@ DATA_PATH = ROOT / "data" / "trash_fee.json"
 SAMPLE_PATH = ROOT / "data" / "trash_fee_sample.json"
 ENVLP_DATA_PATH = ROOT / "data" / "envlp_price.json"
 SALEPLACE_DATA_PATH = ROOT / "data" / "saleplace.json"
+RECYCLE_DATA_PATH = ROOT / "data" / "recycle_center.json"
 DOCS_DIR = ROOT / "docs"
 REGION_DIR = DOCS_DIR / "지역"
 ENVLP_DIR = DOCS_DIR / "봉투"
 SALEPLACE_DIR = DOCS_DIR / "판매소"
+RECYCLE_DIR = DOCS_DIR / "재활용센터"
 BASE_URL = "https://wooatrash.wooahouse.com"
 TODAY = date.today().isoformat()
 
@@ -82,6 +84,7 @@ HEADER_TMPL = """<header class="site-header">
       <a href="{root}index.html#region">지역별</a>
       <a href="{root}봉투/index.html">종량제봉투 가격</a>
       <a href="{root}판매소/index.html">봉투 판매소</a>
+      <a href="{root}재활용센터/index.html">재활용센터</a>
       <a href="https://wooahouse.com" target="_blank" rel="noopener">WooaHouse &rarr;</a>
     </nav>
     <button class="mobile-menu-btn" aria-label="메뉴">☰</button>
@@ -104,6 +107,7 @@ FOOTER_TMPL = """<footer style="background:#111827;color:#9CA3AF;padding:32px 20
 SOURCE_TRASH_FEE = "전국대형폐기물수거수수료정보표준데이터"
 SOURCE_ENVLP = "전국종량제봉투가격표준데이터"
 SOURCE_SALEPLACE = "전국종량제봉투판매소표준데이터"
+SOURCE_RECYCLE = "전국재활용센터표준데이터"
 
 
 def load_records():
@@ -336,6 +340,13 @@ def gen_index_page(sido_map, records):
         <span style="flex:1;">
           <strong style="display:block;font-size:1.05rem;margin-bottom:4px;">종량제봉투 파는곳도 확인하세요</strong>
           <span style="opacity:.9;font-size:.88rem;">우리 동네 종량제봉투 판매소(편의점·마트) 위치 조회 &rarr;</span>
+        </span>
+      </a>
+      <a href="재활용센터/index.html" style="display:flex;align-items:center;gap:16px;background:linear-gradient(135deg,#EA580C,#F97316);color:white;border-radius:14px;padding:22px 24px;text-decoration:none;">
+        <span style="font-size:2rem;">♻️</span>
+        <span style="flex:1;">
+          <strong style="display:block;font-size:1.05rem;margin-bottom:4px;">버리기 전에 재활용센터 확인하세요</strong>
+          <span style="opacity:.9;font-size:.88rem;">아직 쓸만한 가구·가전은 기부·저가판매 가능 &rarr;</span>
         </span>
       </a>
     </div>
@@ -673,7 +684,196 @@ def gen_saleplace_hub_page(sido_map):
     return page_shell(title, desc, canonical, "../", body, keywords=keywords, source=SOURCE_SALEPLACE)
 
 
-def gen_sitemap(sido_map, envlp_sido_map=None, saleplace_sido_map=None):
+SIDO_FULL_NAMES = [
+    "서울특별시", "부산광역시", "대구광역시", "인천광역시", "광주광역시",
+    "대전광역시", "울산광역시", "세종특별자치시", "경기도",
+    "강원특별자치도", "강원도", "충청북도", "충청남도",
+    "전북특별자치도", "전라북도", "전라남도", "경상북도", "경상남도", "제주특별자치도",
+    "전남광주통합특별시",  # 데이터 원문에 이렇게 찍히는 케이스가 있어 광주로 보정
+]
+
+
+def parse_region_from_address(addr):
+    """'경상남도 통영시 동충1길 4' -> ('경상남도', '통영시'). 실패시 (None, None)."""
+    if not addr:
+        return None, None
+    addr = addr.strip()
+    if addr.startswith("전남광주통합특별시"):
+        rest = addr[len("전남광주통합특별시"):].strip()
+        sido = "광주광역시"
+    else:
+        sido = None
+        rest = None
+        for name in SIDO_FULL_NAMES:
+            if name in ("전남광주통합특별시",):
+                continue
+            if addr.startswith(name):
+                sido = SIDO_NORMALIZE.get(name, name)
+                rest = addr[len(name):].strip()
+                break
+        if sido is None:
+            return None, None
+    tokens = rest.split()
+    if not tokens:
+        return sido, sido
+    sgg = tokens[0]
+    if sgg[-1] in "시군구":
+        # 세종/제주 등 바로 읍/면/동으로 이어지는 경우(구가 없는 시)는 시도 자체를 시군구로
+        return sido, sgg
+    return sido, sido
+
+
+def load_recycle_records():
+    if not RECYCLE_DATA_PATH.exists():
+        return []
+    data = json.loads(RECYCLE_DATA_PATH.read_text(encoding="utf-8"))
+    out = []
+    for r in data:
+        if "(운영중단)" in r.get("재활용센터명", "") or r.get("운영구분", "") == "운영중단":
+            continue
+        addr = r.get("소재지도로명주소") or r.get("소재지지번주소") or ""
+        sido, sgg = parse_region_from_address(addr)
+        if not sido:
+            continue
+        r["시도명"] = sido
+        r["시군구명"] = sgg
+        out.append(r)
+    return out
+
+
+def gen_recycle_sigungu_page(sido, sigungu, items):
+    items = sorted(items, key=lambda x: x.get("재활용센터명", ""))
+
+    def map_cell(it):
+        addr = it.get("소재지도로명주소", "") or it.get("소재지지번주소", "")
+        link = kakao_map_link(it.get("재활용센터명", ""), addr, it.get("위도", ""), it.get("경도", ""))
+        if not link:
+            return '<span style="color:var(--text-muted);">-</span>'
+        return f'<a href="{link}" style="color:var(--primary);font-weight:600;">🗺️ 위치보기</a>'
+
+    rows = "".join(
+        f"""<tr>
+          <td style="padding:8px 6px;font-weight:600;">{it.get('재활용센터명','')}</td>
+          <td style="padding:8px 6px;color:#374151;">{it.get('소재지도로명주소','') or it.get('소재지지번주소','') or '-'}</td>
+          <td style="padding:8px 6px;color:#374151;">{it.get('주요취급품목','') or '-'}</td>
+          <td style="padding:8px 6px;white-space:nowrap;">{(it.get('운영기관전화번호') or it.get('관리기관전화번호') or '-')}</td>
+          <td style="padding:8px 6px;white-space:nowrap;">{map_cell(it)}</td>
+        </tr>"""
+        for it in items
+    )
+    manage_org = items[0].get("관리기관명", "") if items else ""
+    body = f"""
+<div style="max-width:1200px;margin:0 auto;padding:24px 20px 40px;display:flex;gap:24px;align-items:flex-start;">
+  <div style="flex:1;min-width:0;">
+  <nav style="font-size:.8rem;color:var(--text-muted);margin-bottom:16px;">
+    <a href="../../index.html">홈</a> &rsaquo; <a href="../index.html">재활용센터</a> &rsaquo; <a href="{sido}.html">{sido}</a> &rsaquo; <span>{sigungu}</span>
+  </nav>
+  <h1 style="font-size:1.5rem;margin-bottom:6px;">{sido} {sigungu} 재활용센터</h1>
+  <p style="color:var(--text-muted);font-size:.9rem;margin-bottom:6px;">관리기관: {manage_org} · 총 {len(items)}곳</p>
+  <p style="color:#374151;font-size:.88rem;margin-bottom:16px;line-height:1.7;">대형폐기물을 버리기 전, 아직 쓸만한 가구·가전·의류는 재활용센터에 기부하거나 저렴하게 판매할 수 있습니다.</p>
+  {AD_BANNER}
+  <div class="fee-card" style="background:white;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.06);padding:20px;overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;font-size:.88rem;">
+      <thead><tr style="border-bottom:2px solid var(--border);">
+        <th style="text-align:left;padding:8px 6px;white-space:nowrap;">센터명</th>
+        <th style="text-align:left;padding:8px 6px;">주소</th>
+        <th style="text-align:left;padding:8px 6px;">취급품목</th>
+        <th style="text-align:left;padding:8px 6px;white-space:nowrap;">전화</th>
+        <th style="text-align:left;padding:8px 6px;white-space:nowrap;">위치</th>
+      </tr></thead>
+      <tbody>{rows}</tbody>
+    </table>
+  </div>
+  </div>
+  {AD_SIDEBAR}
+</div>
+"""
+    short_sg = short_name(sigungu)
+    title = f"{sido} {sigungu} 재활용센터 위치·전화번호 {TODAY[:4]} | 우아트래시"
+    desc = f"{sido} {sigungu}({short_sg}) 재활용센터 {len(items)}곳의 위치, 취급품목, 전화번호를 확인하세요. 가구·가전·의류 기부·저가판매 정보."
+    keywords = f"{sigungu} 재활용센터, {short_sg} 재활용센터, {sigungu} 중고센터, {sido} {sigungu} 가구 기부"
+    canonical = f"{BASE_URL}/재활용센터/{sido}/{sigungu}.html"
+    return page_shell(title, desc, canonical, "../../", body, keywords=keywords, source=SOURCE_RECYCLE)
+
+
+def gen_recycle_sido_page(sido, sigungu_list):
+    cards = "".join(
+        f"""<a href="{sido}/{sg}.html" class="region-card" style="display:block;background:white;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.06);padding:18px 20px;">
+          <strong>{sg}</strong>
+        </a>"""
+        for sg in sigungu_list
+    )
+    short_sido = SIDO_SHORT.get(sido, sido)
+    body = f"""
+<div style="max-width:1200px;margin:0 auto;padding:24px 20px 40px;display:flex;gap:24px;align-items:flex-start;">
+  <div style="flex:1;min-width:0;">
+  <nav style="font-size:.8rem;color:var(--text-muted);margin-bottom:16px;">
+    <a href="../index.html">홈</a> &rsaquo; <a href="index.html">재활용센터</a> &rsaquo; <span>{sido}</span>
+  </nav>
+  <h1 style="font-size:1.5rem;margin-bottom:12px;">{sido} 재활용센터 — 시군구 선택 ({len(sigungu_list)}개 지역)</h1>
+  <p style="color:#374151;line-height:1.75;margin-bottom:20px;font-size:.95rem;">공공데이터포털에 등록된 {sido} 지역 재활용센터 정보입니다. 등록 지역만 제공되어 일부 시군구는 목록에 없을 수 있습니다.</p>
+  {AD_BANNER}
+  <h2 style="font-size:1rem;font-weight:700;margin:20px 0 12px;">{short_sido} 시군구 선택 ({len(sigungu_list)}개 지역)</h2>
+  <div style="{GRID_STYLE}">
+  {cards}
+  </div>
+  </div>
+  {AD_SIDEBAR}
+</div>
+"""
+    title = f"{sido} 재활용센터 찾기 | 우아트래시"
+    desc = f"{sido}({short_sido}) 내 시군구별 재활용센터 위치를 확인하세요."
+    keywords = f"{sido} 재활용센터, {short_sido} 재활용센터, {sido} 중고센터"
+    canonical = f"{BASE_URL}/재활용센터/{sido}.html"
+    return page_shell(title, desc, canonical, "../", body, keywords=keywords, source=SOURCE_RECYCLE)
+
+
+def gen_recycle_hub_page(sido_map):
+    sido_cards = "".join(
+        f"""<a href="{sido}.html" class="region-card" style="display:block;background:white;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.06);padding:18px 20px;">
+          <strong>{sido}</strong><br><span style="color:var(--text-muted);font-size:.85rem;">{len(sgs)}개 지역</span>
+        </a>"""
+        for sido, sgs in sorted(sido_map.items())
+    )
+    body = f"""
+<div style="background:linear-gradient(135deg,#EA580C,#F97316);color:white;padding:44px 20px;text-align:center;">
+  <h1 style="font-size:1.8rem;font-weight:800;margin-bottom:10px;">♻️ 전국 재활용센터 찾기</h1>
+  <p style="opacity:.9;">버리기 전에 기부하거나 저렴하게 팔 수 있는 우리 동네 재활용센터를 확인하세요</p>
+</div>
+<div style="max-width:1100px;margin:24px auto 0;padding:0 20px;">
+  {AD_BANNER}
+</div>
+<div style="max-width:1200px;margin:0 auto;padding:32px 20px 50px;display:flex;gap:24px;align-items:flex-start;">
+  <div style="flex:1;min-width:0;">
+  <nav style="font-size:.8rem;color:var(--text-muted);margin-bottom:16px;">
+    <a href="../index.html">홈</a> &rsaquo; <span>재활용센터</span>
+  </nav>
+  <p style="color:#374151;line-height:1.75;margin-bottom:16px;font-size:.95rem;">공공데이터포털에 등록된 지역만 제공되어 전국 모든 시군구를 포함하지는 않습니다. 아직 쓸만한 가구·가전·의류는 대형폐기물로 버리기 전에 재활용센터에 기부하거나 저가로 처분해보세요.</p>
+  <h2 style="font-size:1.1rem;margin-bottom:16px;">지역 선택 ({len(sido_map)}개 시도)</h2>
+  <div style="{GRID_STYLE}">
+  {sido_cards}
+  </div>
+  <div style="margin:32px 0 0;">
+    <a href="../index.html" style="display:flex;align-items:center;gap:16px;background:linear-gradient(135deg,#1D4ED8,#3B82F6);color:white;border-radius:14px;padding:22px 24px;text-decoration:none;">
+      <span style="font-size:2rem;">🗑️</span>
+      <span style="flex:1;">
+        <strong style="display:block;font-size:1.05rem;margin-bottom:4px;">대형폐기물 수수료도 확인하세요</strong>
+        <span style="opacity:.9;font-size:.88rem;">우리 동네 대형폐기물 스티커 가격 지역별 조회 &rarr;</span>
+      </span>
+    </a>
+  </div>
+  </div>
+  {AD_SIDEBAR}
+</div>
+"""
+    title = "전국 재활용센터 찾기 — 가구·가전 기부·중고판매 | 우아트래시"
+    desc = "전국 재활용센터 위치, 취급품목, 전화번호를 무료로 확인하세요. 대형폐기물로 버리기 전 기부·저가판매 정보. 공공데이터 기반."
+    keywords = "재활용센터, 재활용센터 위치, 가구 기부, 중고센터, 재활용센터 찾기"
+    canonical = f"{BASE_URL}/재활용센터/index.html"
+    return page_shell(title, desc, canonical, "../", body, keywords=keywords, source=SOURCE_RECYCLE)
+
+
+def gen_sitemap(sido_map, envlp_sido_map=None, saleplace_sido_map=None, recycle_sido_map=None):
     urls = [f"  <url><loc>{BASE_URL}/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>"]
     for sido, sgs in sido_map.items():
         urls.append(f"  <url><loc>{BASE_URL}/지역/{sido}.html</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>")
@@ -691,6 +891,12 @@ def gen_sitemap(sido_map, envlp_sido_map=None, saleplace_sido_map=None):
             urls.append(f"  <url><loc>{BASE_URL}/판매소/{sido}.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>")
             for sg in sgs:
                 urls.append(f"  <url><loc>{BASE_URL}/판매소/{sido}/{sg}.html</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>")
+    if recycle_sido_map:
+        urls.append(f"  <url><loc>{BASE_URL}/재활용센터/index.html</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>")
+        for sido, sgs in recycle_sido_map.items():
+            urls.append(f"  <url><loc>{BASE_URL}/재활용센터/{sido}.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>")
+            for sg in sgs:
+                urls.append(f"  <url><loc>{BASE_URL}/재활용센터/{sido}/{sg}.html</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>")
     xml = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' + "\n".join(urls) + "\n</urlset>\n"
     (DOCS_DIR / "sitemap.xml").write_text(xml, encoding="utf-8")
 
@@ -760,7 +966,28 @@ def main():
                 (sido_dir / f"{sg}.html").write_text(gen_saleplace_sigungu_page(sido, sg, items), encoding="utf-8")
                 generated += 1
 
-    gen_sitemap(sido_map, envlp_sido_map, saleplace_sido_map)
+    recycle_records = load_recycle_records()
+    print(f"{len(recycle_records)}건 로드 (재활용센터)")
+    recycle_sido_map = {}
+    if recycle_records:
+        recycle_by_sido_sigungu = defaultdict(lambda: defaultdict(list))
+        for r in recycle_records:
+            recycle_by_sido_sigungu[r["시도명"]][r["시군구명"]].append(r)
+        recycle_sido_map = {sido: sorted(sgs.keys()) for sido, sgs in recycle_by_sido_sigungu.items()}
+
+        RECYCLE_DIR.mkdir(parents=True, exist_ok=True)
+        (RECYCLE_DIR / "index.html").write_text(gen_recycle_hub_page(recycle_sido_map), encoding="utf-8")
+        generated += 1
+        for sido, sgs in recycle_by_sido_sigungu.items():
+            sido_dir = RECYCLE_DIR / sido
+            sido_dir.mkdir(parents=True, exist_ok=True)
+            (RECYCLE_DIR / f"{sido}.html").write_text(gen_recycle_sido_page(sido, sorted(sgs.keys())), encoding="utf-8")
+            generated += 1
+            for sg, items in sgs.items():
+                (sido_dir / f"{sg}.html").write_text(gen_recycle_sigungu_page(sido, sg, items), encoding="utf-8")
+                generated += 1
+
+    gen_sitemap(sido_map, envlp_sido_map, saleplace_sido_map, recycle_sido_map)
     print(f"총 {generated}개 페이지 생성 완료")
 
 

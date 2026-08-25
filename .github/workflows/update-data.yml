@@ -34,6 +34,9 @@ jobs:
       - name: 종량제봉투 판매소 데이터 수집
         run: python scripts/fetch_saleplace_data.py
 
+      - name: 재활용센터 데이터 수집
+        run: python scripts/fetch_recycle_center_data.py
+
       - name: 페이지 생성
         run: python scripts/generate_pages.py
 
