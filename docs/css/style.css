@@ -613,6 +613,6 @@ button { cursor: pointer; font-family: inherit; border: none; background: none; 
 .ad-inline { width: 100%; margin: 16px auto; max-width: 728px; }
 .ad-side   { width: 300px; min-height: 250px; flex-shrink: 0; }
 @media (max-width: 768px) {
-  .ad-top, .ad-mid { height: 50px; }
+  .ad-top, .ad-mid { height: auto; overflow: visible; } /* 2026-11: 고정 50px+overflow:hidden은 큰 광고를 잘라 노출 가치가 낮았음 */
   .ad-side { display: none; }
 }
